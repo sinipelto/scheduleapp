@@ -8,17 +8,28 @@ This module is independent module.
 
 import json
 from time import timezone
+from datetime import datetime
 from urllib import request
 
 # URL string to get API data from. Is a global readonly variable
-# so it can be updated easily if changes happen.
+# so it can be updated easily if any changes happen.
 api_url = "https://rata.digitraffic.fi/api/v1/"
+
+
+def get_current_time():
+    """Gets current local time
+    and returns it as a list.
+    """
+    now = str(datetime.now()).split(" ")[1].split(":")
+    time = [now[0], now[1], now[2].split(".")[0]]
+    return time
 
 
 def convert_date_format(date):
     """Returns a list containing the date and time
     formatted into separate strings from API data.
-    Also adds current timezone difference."""
+    Also adds current timezone difference.
+    """
     # from: yyyy-mm-ddT00:00:00.000Z
     # to: [["yyyy","mm","dd"], ["00","00","00"]]
 
@@ -42,6 +53,7 @@ def convert_date_format(date):
         hour = "0" + hour
 
     date[1] = date[1].replace(hour_str, hour, 1)
+
     date[0] = date[0].split("-")
     date[1] = date[1].split(":")
     return date
@@ -76,16 +88,19 @@ def get_station_data(station, departing):
     :return station_data : data of the specific station
     """
 
+    # URL part for train live-tracking for station
+    begin = "live-trains/station/"
+
     # Get different data for departing and arriving trains
     if departing:
-        part = "live-trains/station/" + station \
+        part = begin + station \
                + "?minutes_before_departure=240&" \
                  "minutes_after_departure=0&" \
                  "minutes_before_arrival=0&" \
                  "minutes_after_arrival=0&" \
                  "include_nonstopping=false"
     else:
-        part = "live-trains/station/" + station \
+        part = begin + station \
                + "?minutes_before_departure=0&" \
                  "minutes_after_departure=0&" \
                  "minutes_before_arrival=240&" \
