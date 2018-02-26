@@ -1,6 +1,8 @@
 # coding=utf-8
 
 """
+Copyright (c) 2018 Toni B
+
 Main Window class.
 Everything needed in UI window is defined here.
 Needs functions and autocomplete modules to function properly.
@@ -33,6 +35,9 @@ class MainWindow(tk.Frame):
 
         self.__direction = None
         self.__target = None
+
+        self.__keys = ["trainType", "trainNumber", "timeTableRows", "commuterLineID"]
+        self.__times = ["scheduledTime", "liveEstimateTime", "actualTime"]
 
         # Add station names to selection list
         for key in self.__stations_dict:
@@ -148,6 +153,36 @@ class MainWindow(tk.Frame):
         self.show_trains()
         self.clear_target()  # Finally, clear destination
 
+    def cmp_dep(self, t):
+        """
+        Compare function for lambda function to
+        compare train schedule times by departuring order
+        :param t: train to compare
+        :return: time in minutes (min)
+        """
+        keys = self.__keys
+        times = self.__times
+        for row in t[keys[2]]:
+            if row["stationShortCode"] == self.__target and row["type"] == "DEPARTURE":
+                time = ((int(convert_date_format(t[keys[2]][t[keys[2]].index(row)][times[0]])[1][0]) * 60)
+                        + int(convert_date_format(t[keys[2]][t[keys[2]].index(row)][times[0]])[1][1]))
+                return time
+
+    def cmp_arr(self, t):
+        """
+        Compare function for lambda function to
+        compare train schedule times by arriving order
+        :param t: train to compare
+        :return: time in minutes (min)
+        """
+        keys = self.__keys
+        times = self.__times
+        for row in t[keys[2]]:
+            if row["stationShortCode"] == self.__target and row["type"] == "ARRIVAL":
+                time = ((int(convert_date_format(t[keys[2]][t[keys[2]].index(row)][times[0]])[1][0]) * 60)
+                        + int(convert_date_format(t[keys[2]][t[keys[2]].index(row)][times[0]])[1][1]))
+                return time
+
     def show_trains(self):
         """
         This function generates information lines about data
@@ -165,18 +200,29 @@ class MainWindow(tk.Frame):
             mode = 1
 
         if len(data) <= 0:
-            self.__info_label.config(text="Junia asemalle ei valitettavasti löytynyt.")
+            self.__info_label.config(text="Junia asemalle ei löytynyt. (seur. 240min)")
             print("NO TRAINS FOUND")
 
-        keys = ["trainType", "trainNumber", "timeTableRows", "commuterLineID"]
+        keys = self.__keys
+        times = self.__times
 
-        r = 10
-        x = 0
+        # Sort train data to time order, use inner method .sort for better performance.
+        # Original order not needed after sorting. Uses custom sorting functions defined above.
+
+        if mode == 0:
+            data.sort(key=lambda a: self.cmp_dep(a))
+        else:
+            data.sort(key=lambda a: self.cmp_arr(a))
+
+        r = 10  # Current row
+        x = 0  # Current schedule list index
         for i in range(0, len(data)):
-            # TODO: SORT DATA BY TIME HERE
-            if i >= 40:  # No space for any more trains
+            if i >= 40:  # No space in UI for any more trains than this
                 break
+
             fail = False
+
+            # Check for train cancellation
             if data[i]["cancelled"] == "true":
                 cancelled = True
             else:
@@ -191,6 +237,10 @@ class MainWindow(tk.Frame):
             dest = data[i][keys[2]][size - 1]["stationShortCode"].upper()
             dest = self.station_long_name(dest)
 
+            # If destination is both origin and target station, we skip it
+            if origin == dest and dest == self.station_long_name(self.__target):
+                continue
+
             timerow = None
             if mode == 0:  # Get departure
                 for row in data[i][keys[2]]:
@@ -202,6 +252,14 @@ class MainWindow(tk.Frame):
                     if row["stationShortCode"] == self.__target and row["type"] == "ARRIVAL":
                         timerow = row
                         break
+
+            # Drop off schedules behind current (local) time
+            time_raw = convert_date_format(timerow[times[0]])
+            time_train = (int(time_raw[1][0]) * 60) + int(time_raw[1][1])
+            time_current = (int(get_current_time()[0]) * 60) + int(get_current_time()[1])
+
+            if time_train < time_current:
+                continue
 
             for j in range(0, 5):
                 text = None
@@ -234,16 +292,16 @@ class MainWindow(tk.Frame):
                         print("TIMEROW FAIL")
                         fail = True
                     else:
-                        # Get train scheduled time
-                        schedtime = convert_date_format(timerow["scheduledTime"])
+                        # Get station stop scheduled time
+                        schedtime = convert_date_format(timerow[times[0]])
                         schedtime = schedtime[1][0] + ":" + schedtime[1][1]
                         text = schedtime
                         try:
                             # Tries to use live estimate time if available
-                            actime = convert_date_format(timerow["liveEstimateTime"])
+                            actime = convert_date_format(timerow[times[1]])
                             if actime is None:
                                 # In other case use actual time
-                                actime = convert_date_format(timerow["actualTime"])
+                                actime = convert_date_format(timerow[times[2]])
                             actime = actime[1][0] + ":" + actime[1][1]
                             if actime != schedtime:
                                 text = actime + " (" + schedtime + ")"
@@ -267,6 +325,7 @@ class MainWindow(tk.Frame):
 
                 if fail:
                     # If any settings above failed
+                    # Destroy any parts of curent data and go to next
                     for widget in self.__schedule_list[x]:
                         widget.destroy()
                     self.__schedule_list.remove(self.__schedule_list[x])
@@ -278,6 +337,7 @@ class MainWindow(tk.Frame):
                 self.__schedule_list[x].append(label)
                 label.grid(row=r, column=j)
 
+                # Cancelled or late should be in red color
                 if cancelled or late:
                     if j == 3 or j == 4:
                         label.config(fg="red")

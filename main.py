@@ -1,6 +1,8 @@
 # coding=utf-8
 
 """
+Copyright (c) 2018 Toni B
+
 This program inits a tkinter window widget to
 show train schedule using VR API and to display API data
 inside the widget, properly formatted.

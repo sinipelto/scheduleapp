@@ -1,6 +1,8 @@
 # coding=utf-8
 
 """
+Copyright (c) 2018 Toni B
+
 Autocomplete widget module.
 Contains a widget that helps filtering
 search results between a list of options and given input.
@@ -34,6 +36,7 @@ class AutocompleteEntry(Entry):
 
         self.var.trace('w', self.changed)
         self.bind("<Return>", self.selection)
+        self.bind("<Right>", self.selection)
         self.bind("<Up>", self.up)
         self.bind("<Down>", self.down)
 
